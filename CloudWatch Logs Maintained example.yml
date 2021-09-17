@@ -1,0 +1,1953 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Highly available Ubuntu Application on EC2.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label: # Network Group
+        default: Network Configuration
+      Parameters:
+      - VpcId
+      - VpcCIDR
+      - PrivateSubnet1ID
+      - PrivateSubnet2ID
+      - FQDN
+      - SSLCertificate
+    - Label: # Redis Group
+        default: Redis Cluster Configuration
+      Parameters:
+      - RedisPort
+      - RedisMultiAZ
+      - RedisNodeCount
+      - ClusterNodeCount
+      - ClusterNodeType
+    - Label: # Postgres Group
+        default: Postgres Configuration
+      Parameters:
+      - RDSUsername
+      - RDSPassword
+      - RDSDatabaseName
+      - RDSInstanceType
+      - RDSStorageSize
+      - RDSPort
+      - MultiAZDatabase
+    - Label: # Elasticsearch Group
+        default: Elasticsearch Configuration
+      Parameters:
+      - isElasticsearch
+      - MasterType
+      - MasterCount
+      - NodeType
+      - NodeCount
+      - ElasticsearchVersion
+      - DedicatedMasterEnabled
+      - ZoneAwarenessEnabled
+    - Label: # Application Group
+        default: Application Configuration
+      Parameters:
+      - ApplicationCPUScaleTarget
+      - ApplicationMinNodes
+      - ApplicationMaxNodes
+      - ApplicationDesiredInstanceCount
+      - ApplicationInstanceType
+      - ApplicationInstanceStorageSize
+      - ApplicationInstanceStorageType
+      - ApplicationInstanceStorageIOPS
+      - UbuntuImageId
+      - ApplicationName
+      - ApplicationKeyName
+    - Label: # Gitlab Group
+        default: Gitlab Configuration
+      Parameters:
+      - isGitlabRunners
+      - GitlabPassword
+      - GitlabEdition
+      - GitlabRunnerToken
+      - GitlabRunnerCPUScaleTarget
+      - GitlabRunnerMinNodes
+      - GitlabRunnerMaxNodes
+      - GitlabRunnerDesiredInstanceCount
+      - GitlabRunnerInstanceType
+      - GitlabRunnerInstanceStorageSize
+    - Label: # LDAP Group
+        default: LDAP Configuration
+      Parameters:
+      - LDAPHost
+      - LDAPBindDN
+      - LDAPBindPassword
+      - LDAPUserBaseDN
+      - LDAPUserFilter
+      - LDAPGroupBaseDN
+      - LDAPAdminGroupCN
+
+    ParameterLabels:
+    # Network Label
+      VpcId:
+        default: VpcId
+      VpcCIDR:
+        default: VpcCIDR
+      PrivateSubnet1ID:
+        default: PrivateSubnet1ID
+      PrivateSubnet2ID:
+        default: PrivateSubnet2ID
+      FQDN:
+        default: Fully Qualified Domain Name
+      SSLCertificate:
+        default: SSLCertificate
+    # Redis Label
+      ClusterNodeType:
+        default: Redis Node Type
+      RedisPort:
+        default: Redis Port
+      RedisMultiAZ:
+        default: Redis Multi AZ deployment
+      ClusterNodeCount:
+        default: Redis Node Count
+    # Postgres Label
+      RDSUsername:
+        default: RDSUsername
+      RDSPassword:
+        default: RDSPassword
+      RDSDatabaseName:
+        default: RDSDatabaseName
+      RDSInstanceType:
+        default: RDSInstanceType
+      RDSStorageSize:
+        default: RDSStorageSize
+      RDSPort:
+        default: RDSPort
+      MultiAZDatabase:
+        default: MultiAZDatabase
+    # Elasticsearch Label
+      isElasticsearch:
+        default: isElasticsearch
+      NodeType:
+        default: NodeType
+      NodeCount:
+        default: NodeCount
+      DedicatedMasterEnabled:
+        default: DedicatedMasterEnabled
+      ZoneAwarenessEnabled:
+        default: ZoneAwarenessEnabled
+    # Application Label
+      ApplicationCPUScaleTarget:
+        default: ApplicationCPUScaleTarget
+      ApplicationMinNodes:
+        default: ApplicationMinNodes
+      ApplicationMaxNodes:
+        default: ApplicationMaxNodes
+      ApplicationDesiredInstanceCount:
+        default: ApplicationDesiredInstanceCount
+      ApplicationInstanceType:
+        default: ApplicationInstanceType
+      ApplicationInstanceStorageSize:
+        default: ApplicationInstanceStorageSize
+      ApplicationInstanceStorageType:
+        default: ApplicationInstanceStorageType
+      ApplicationInstanceStorageIOPS:
+        default: ApplicationInstanceStorageIOPS
+      ApplicationKeyName:
+        default: ApplicationKeyName
+      UbuntuImageId:
+        default: UbuntuImageId
+      ApplicationName:
+        default: ApplicationName
+    # Gitlab Label
+      isGitlabRunners:
+        default: isGitlabRunners
+      GitlabPassword:
+        default: GitlabPassword
+      GitlabEdition:
+        default: GitlabEdition
+      GitlabRunnerToken:
+        default: GitlabRunnerToken
+      GitlabRunnerCPUScaleTarget:
+        default: GitlabRunnerCPUScaleTarget
+      GitlabRunnerMinNodes:
+        default: GitlabRunnerMinNodes
+      GitlabRunnerMaxNodes:
+        default: GitlabRunnerMaxNodes
+      GitlabRunnerDesiredInstanceCount:
+        default: GitlabRunnerDesiredInstanceCount
+      GitlabRunnerInstanceType:
+        default: GitlabRunnerInstanceType
+      GitlabRunnerInstanceStorageSize:
+        default: GitlabRunnerInstanceStorageSize
+    # LDAP Label
+      LDAPHost:
+        default: LDAPHost
+      LDAPBindDN:
+        default: LDAPBindDN
+      LDAPBindPassword:
+        default: LDAPBindPassword
+      LDAPUserBaseDN:
+        default: LDAPUserBaseDN
+      LDAPUserFilter:
+        default: LDAPUserFilter
+      LDAPGroupBaseDN:
+        default: LDAPGroupBaseDN
+      LDAPAdminGroupCN:
+        default: LDAPAdminGroupCN
+Parameters:
+# Network Parameters
+  VpcId:
+    Description: "VpcId"
+    Type: AWS::EC2::VPC::Id
+  VpcCIDR:
+    Description: VPC CIDR
+    Type: String
+    Default: 10.0.0.0/8
+  PrivateSubnet1ID:
+    Description: "PrivateSubnet1ID"
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2ID:
+    Description: "PrivateSubnet2ID"
+    Type: AWS::EC2::Subnet::Id
+  FQDN:
+    Description: "(Optional) Fully qualified domain name for the application."
+    Default: example.com
+    Type: String
+  SSLCertificate:
+    Description: "(Optional) ARN for application load balancer SSL certificate from ACM."
+    Default: ''
+    Type: String
+# Redis Parameters
+  ClusterNodeType:
+    Default: cache.t3.medium
+    Description: The compute and memory capacity of the nodes in the Redis Cluster
+    Type: String
+  ClusterNodeCount:
+    Description: Cluster node count
+    Type: Number
+    Default: 2  
+  RedisPort:
+    Description: Redis port
+    Type: Number
+    Default: 6379
+  RedisMultiAZ:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    ConstraintDescription: true or false
+    Default: 'true'
+    Description: When true, launch a multi availability zone Redis cluster.
+    Type: String
+# Postgres Parameters
+  RDSUsername:
+    AllowedPattern: "^[a-z][a-z0-9_]*$"
+    MinLength: '1'
+    MaxLength: '128'
+    ConstraintDescription: User name parameter must be lowercase, begin with a letter,
+      contain only alphanumeric characters or underscores, and be less than 128 characters.
+    Description: The user name that is associated with the master user account for
+      the RDS cluster that is being created. User name parameter must be lowercase,
+      begin with a letter, contain only alphanumeric characters or underscores, and
+      be less than 128 characters.
+    Type: String
+    NoEcho: 'true'
+  RDSPassword:
+    AllowedPattern: "^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[A-Za-z0-9!#$%&()*+,.:;<=>?\\[\\]^_`{|}~-]*$"
+    MinLength: '8'
+    MaxLength: '64'
+    ConstraintDescription: 'Password must contain 8 to 64 printable ASCII characters
+      excluding: /, ", \'', \ and @. It must contain 1 uppercase letter, 1 lowercase
+      letter, and 1 number.'
+    Description: 'The password that is associated with the RDS instance that is being
+      created. Password must contain 8 to 64 printable ASCII characters excluding:
+      /, ", \'', \ and @. It must contain 1 uppercase letter, 1 lowercase letter,
+      and 1 number.'
+    Type: String
+    NoEcho: 'true'
+  RDSDatabaseName:
+    Description: Database name
+    Type: String
+    Default: gitlabhq_production
+  RDSInstanceType:
+    Description: Instance type
+    Type: String
+    Default: db.r4.large
+  RDSStorageSize:
+    Type: Number
+    Description: Storage size of RDS instance (in GB)
+    Default: 10
+  RDSPort:
+    Description: Instance port
+    Type: Number
+    Default: '5432'
+  MultiAZDatabase:
+    AllowedValues:
+    - 'true'
+    - 'false'
+    ConstraintDescription: true or false
+    Default: 'true'
+    Description: When true, launch a multi availability zone RDS instance.
+    Type: String
+# Elasticsearch Parameters
+  isElasticsearch: 
+    Description: Should the Stack provide an Elasticsearch Cluster.
+    Type: String
+    Default: false
+    AllowedValues: 
+      - true
+      - false
+  MasterType:
+    Description: The master node type to be provisioned for the Elasticsearch cluster
+    Type: String
+    Default: r5.large.elasticsearch
+    ConstraintDescription: must be a valid Elasticsearch node type.
+  MasterCount:
+    Description: The number of masters in the Elasticsearch cluster.
+    Type: Number
+    Default: '3'
+  NodeType:
+    Description: The node type to be provisioned for the Elasticsearch cluster
+    Type: String
+    Default: r5.large.elasticsearch
+    ConstraintDescription: must be a valid Elasticsearch node type.
+  NodeCount:
+    Description: The number of nodes in the Elasticsearch cluster.
+    Type: Number
+    Default: '4'
+  ElasticsearchVersion:
+    Description: The elasticsearch verion.
+    Type: String
+    Default: '7.4'
+  DedicatedMasterEnabled:
+    Description: The elasticsearch verion.
+    Type: String
+    AllowedValues: 
+      - true
+      - false
+    Default: true
+  ZoneAwarenessEnabled:
+    Description: The elasticsearch verion.
+    Type: String
+    AllowedValues: 
+      - true
+      - false
+    Default: true
+# Application Parameters
+  ApplicationCPUScaleTarget:
+    Description: Scale Up at ASGAverageCPUUtilization of X percent.
+    Type: String
+    Default: 80
+  ApplicationMinNodes:
+    Description: Minimum number of Application Nodes.
+    Type: Number
+    Default: 1
+  ApplicationMaxNodes:
+    Description: Maximum number of Application Nodes
+    Type: Number
+    Default: 5
+  ApplicationInstanceType:
+    Description: Application server EC2 instance type
+    Type: String
+    Default: c5d.xlarge
+  ApplicationInstanceStorageSize:
+    Description: Application server storage size (in GBs)
+    Type: Number
+    Default: '100'
+  ApplicationInstanceStorageType:
+    Description: 'Application server storage type. Allowed values are: standard, io1, gp2.'
+    Type: String
+    Default: standard
+    AllowedValues:
+    - standard
+    - io1
+    - gp2
+  ApplicationInstanceStorageIOPS:
+    Description: Application server storage IOPS. Used only when storage type is set to
+      io1.
+    Type: Number
+    MinValue: '100'
+    MaxValue: '20000'
+    Default: 100
+  ApplicationDesiredInstanceCount:
+    Description: Initial number of webservers to launch. On first delploy ensure the value is '1'. After deployed this can be changed.  '1' is recommended because if 2 initially launch, they compete over the database initialization and return a 502.
+    Type: Number
+    Default: 1
+  ApplicationKeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: Can contain only ASCII characters.
+  UbuntuImageId:
+    Description: ImageId for Ubuntu
+    Type: String
+    Default: ami-085925f297f89fce1
+  ApplicationName:
+    Description: Application Name
+    Type: String
+# Gitlab Parameters
+  isGitlabRunners:
+      Description: Should the Stack use gitlabrunners.
+      Type: String
+      Default: false
+      AllowedValues: 
+        - true
+        - false
+  GitlabPassword:
+    Description: Application root password
+    NoEcho: 'true'
+    Type: String
+  GitlabEdition:
+    Description: GitLab license Choice. gitlab-ee (Enterprise) or gitlab-ce (Community)
+    ConstraintDescription: gitlab-ee or gitlab-ce
+    Type: String
+    Default: gitlab-ee
+    AllowedValues:
+    - gitlab-ee
+    - gitlab-ce
+  GitlabRunnerToken:
+    Description: Registration token for GitLab Runner. Registration token must contain
+      exactly 20 alphanumeric characters
+    Type: String
+    MinLength: '20'
+    MaxLength: '20'
+    Default: nsrjty6q91ly7bf6hx2b
+    NoEcho: 'true'
+  GitlabRunnerCPUScaleTarget:
+    Description: Scale Up at ASGAverageCPUUtilization of X percent.
+    Type: String
+    Default: 80
+  GitlabRunnerMinNodes:
+    Description: Minimum number of GitlabRunner Nodes.
+    Type: Number
+    Default: 1
+  GitlabRunnerMaxNodes:
+    Description: Maximum number of GitlabRunner Nodes
+    Type: Number
+    Default: 5
+  GitlabRunnerDesiredInstanceCount:
+    Description: Number or web server instances in Auto scaling group
+    Type: Number
+    Default: 1
+  GitlabRunnerInstanceStorageSize:
+    Description: GitlabRunner server storage size (in GBs)
+    Type: Number
+    Default: '20'
+  GitlabRunnerInstanceType:
+    Description: GitlabRunner server EC2 instance type
+    Type: String
+    Default: t2.micro
+  LDAPHost:
+    Description: LDAP host
+    Type: String
+    Default: example.com
+  LDAPBindDN:
+    Description: Service Account BindDN.
+    Type: String
+    Default: CN=Gitlab Service,OU=service-accounts,OU=example,DC=example,DC=com
+  LDAPBindPassword:
+    Description: Service account password
+    Type: String
+    Default: CHANGEME
+    NoEcho: 'true'
+  LDAPUserBaseDN:
+    Description: GitlabRunner server EC2 instance type
+    Type: String
+    Default: OU=users,OU=example,DC=example,DC=com
+  LDAPUserFilter:
+    Description: GitlabRunner server EC2 instance type
+    Type: String
+    Default: (memberOf=CN=gitlab-users,OU=Groups,OU=example,DC=example,DC=com)
+  LDAPGroupBaseDN:
+    Description: GitlabRunner server EC2 instance type
+    Type: String
+    Default: OU=users,OU=example,DC=example,DC=com
+  LDAPAdminGroupCN:
+    Description: GitlabRunner server EC2 instance type
+    Type: String
+    Default: CN=gitlab-admins,OU=groups,OU=example,DC=example,DC=com
+
+Conditions:
+  ApplicationStorageWithIOPSCondition: !Equals [!Ref ApplicationInstanceStorageType, io1]
+  UseElasticsearch: !Equals [ !Ref isElasticsearch, true ]
+  UseGitlabRunner: !Equals [ !Ref isGitlabRunners, true ]
+  UseFQDN: !Not [!Equals [!Ref FQDN, '']]
+  UseSSLCertificate: !Not [!Equals [!Ref SSLCertificate, '']]
+  UseNoSSLCertificate: !Equals [!Ref SSLCertificate, '']
+
+Resources:
+# Redis Resources
+  RedisCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AutomaticFailoverEnabled: !Ref RedisMultiAZ
+      ReplicationGroupDescription: Redis Replication Group
+      CacheNodeType: !Ref ClusterNodeType
+      Engine: redis
+      NumCacheClusters: !Ref ClusterNodeCount
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Port: !Ref RedisPort
+      SecurityGroupIds:
+      - !Ref RedisSecurityGroup
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Redis subnet group
+      SubnetIds:
+      - !Ref PrivateSubnet1ID
+      - !Ref PrivateSubnet2ID
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable Redis port
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: !Ref RedisPort
+        ToPort: !Ref RedisPort
+        CidrIp: !Ref VpcCIDR
+# Postgres Resources
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: !Ref RDSDatabaseName
+      AllocatedStorage: !Ref RDSStorageSize
+      DBInstanceClass: !Ref RDSInstanceType
+      Engine: postgres
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 30
+      DeleteAutomatedBackups: false
+      Port: !Ref RDSPort
+      MasterUsername: !Ref RDSUsername
+      MasterUserPassword: !Ref RDSPassword
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      VPCSecurityGroups:
+      - !Ref RDSSecurityGroup
+      PubliclyAccessible: 'false'
+      MultiAZ: !Ref MultiAZDatabase
+      KmsKeyId: !Ref RDSKey
+      CopyTagsToSnapshot: true
+      StorageEncrypted: true
+      Tags:
+      - Key: Name
+        Value: !Ref ApplicationName
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: RDS subnet group
+      SubnetIds:
+      - !Ref PrivateSubnet1ID
+      - !Ref PrivateSubnet2ID
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable Postgres port
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort:
+          Ref: RDSPort
+        ToPort:
+          Ref: RDSPort
+        CidrIp:
+          Ref: VpcCIDR
+  RDSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub ${ApplicationName} RDS Key
+      Enabled: true
+      EnableKeyRotation: true
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
+        - 
+          Sid: "Allow Application instances access to the key."
+          Effect: "Allow"
+          Principal:
+            AWS: !GetAtt ApplicationInstanceRole.Arn
+          Action: 
+            - "kms:Encrypt"
+            - "kms:Decrypt"
+            - "kms:ReEncrypt*"
+            - "kms:GenerateDataKey*"
+            - "kms:DescribeKey"
+          Resource: "*"
+      Tags:
+      - Key: Name
+        Value: !Sub ${ApplicationName} Key
+  RDSAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/rds-gitlab
+      TargetKeyId:
+        Ref: RDSKey
+# Elasticsearch Resources
+  ElasticsearchDomain:
+    Condition: UseElasticsearch
+    Type: AWS::Elasticsearch::Domain
+    UpdatePolicy:
+      EnableVersionUpgrade: true
+    Properties:
+      ElasticsearchClusterConfig:
+        DedicatedMasterEnabled: !Ref DedicatedMasterEnabled
+        ZoneAwarenessEnabled: !Ref ZoneAwarenessEnabled
+        DedicatedMasterType: !Ref MasterType
+        DedicatedMasterCount: !Ref MasterCount
+        InstanceCount: !Ref NodeCount
+        InstanceType: !Ref NodeType
+      ElasticsearchVersion: !Ref ElasticsearchVersion
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: 10
+        VolumeType: gp2
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: '0'
+      VPCOptions:
+        SubnetIds:
+          - !Ref PrivateSubnet1ID
+          - !Ref PrivateSubnet2ID
+        SecurityGroupIds:
+          - !Ref ElasticsearchSecurityGroup
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: 'true'
+        indices.fielddata.cache.size: '40'
+  ElasticsearchSecurityGroup:
+    Condition: UseElasticsearch
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref 'AWS::StackName'
+      SecurityGroupIngress:
+      - IpProtocol: '-1'
+        FromPort: -1
+        ToPort: -1
+        CidrIp: !Ref VpcCIDR
+      SecurityGroupEgress: 
+        - IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Default"
+      VpcId: !Ref VpcId
+  ElasticsearchSLR:
+    Condition: UseElasticsearch
+    Type: 'AWS::IAM::ServiceLinkedRole'
+    Properties:
+      AWSServiceName: !Sub es.${AWS::URLSuffix}
+      Description: es Service Linked Role
+# Application Resources
+  EFSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub ${ApplicationName} EFS Key
+      Enabled: true
+      EnableKeyRotation: true
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
+        - 
+          Sid: "Allow Application instances access to the key."
+          Effect: "Allow"
+          Principal:
+            AWS: !GetAtt ApplicationInstanceRole.Arn
+          Action: 
+            - "kms:Encrypt"
+            - "kms:Decrypt"
+            - "kms:ReEncrypt*"
+            - "kms:GenerateDataKey*"
+            - "kms:DescribeKey"
+          Resource: "*"
+      Tags:
+      - Key: Name
+        Value: !Sub ${ApplicationName} Key
+  EFSAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/efs-gitlab
+      TargetKeyId:
+        Ref: EFSKey
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      Encrypted: true
+      KmsKeyId: !Ref EFSKey
+      FileSystemTags:
+        - Key: Name
+          Value: !Join [' ', [!Ref 'AWS::StackName', 'cluster shared-files']]
+        - Key: Application
+          Value: !Ref AWS::StackId
+  
+  EFSMountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SecurityGroups:
+      - !GetAtt EFSSecurityGroup.GroupId
+      SubnetId: !Ref PrivateSubnet1ID
+  
+  EFSMountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SecurityGroups:
+      - !GetAtt EFSSecurityGroup.GroupId
+      SubnetId: !Ref PrivateSubnet2ID
+  
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable NFS access from Application Instances.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+      - FromPort: 2049
+        IpProtocol: tcp
+        ToPort: 2049
+        SourceSecurityGroupId: !GetAtt ApplicationInstanceSecurityGroup.GroupId
+  ApplicationInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - !Sub ec2.${AWS::URLSuffix}
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: ELBPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: ec2:*
+            Resource: "*"
+          - Effect: Allow
+            Action: es:*
+            Resource: !Sub arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/*
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+  ApplicationInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - Ref: ApplicationInstanceRole
+
+  ApplicationAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    UpdatePolicy:
+        AutoScalingRollingUpdate:
+            MinInstancesInService: 1
+            PauseTime: PT10m
+            WaitOnResourceSignals: true
+    Properties:
+      LaunchConfigurationName: !Ref ApplicationLaunchConfiguration
+      VPCZoneIdentifier:
+      - !Ref PrivateSubnet1ID
+      - !Ref PrivateSubnet2ID
+      MinSize: !Ref ApplicationMinNodes
+      MaxSize: !Ref ApplicationMaxNodes
+      Cooldown: '300'
+      DesiredCapacity: !Ref ApplicationDesiredInstanceCount
+      TargetGroupARNs: 
+        - !Ref ApplicationLoadBalancerTargetGroup
+        - !Ref ApplicationRegistryLoadBalancerTargetGroup
+        - !Ref NetworkLoadBalancerTargetGroup
+      Tags:
+      - Key: Name
+        Value: !Ref ApplicationName
+        PropagateAtLaunch: 'true'
+    CreationPolicy:
+      ResourceSignal:
+        Count: !Ref ApplicationMinNodes
+        Timeout: PT60M
+  ApplicationScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref ApplicationAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: !Ref ApplicationCPUScaleTarget
+  ApplicationLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      Comment: Install application
+      AWS::CloudFormation::Init:
+        configSets:
+          default:
+            - 01_setupCfnHup
+            - 02_config-amazon-cloudwatch-agent
+            - 03_restart_amazon-cloudwatch-agent
+            - 04_config_gitlab
+          UpdateEnvironment:
+            - 02_config-amazon-cloudwatch-agent
+            - 03_restart_amazon-cloudwatch-agent
+        01_setupCfnHup:
+          files:
+             '/etc/cfn/cfn-hup.conf':
+               content: !Sub |
+                 [main]
+                 stack=${AWS::StackId}
+                 region=${AWS::Region}
+                 interval=1
+               mode: '000400'
+               owner: root
+               group: root
+             '/etc/cfn/hooks.d/amazon-cloudwatch-agent-auto-reloader.conf':
+               content: !Sub |
+                 [cfn-auto-reloader-hook]
+                 triggers=post.update
+                 path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init.02_config-amazon-cloudwatch-agent
+                 action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource EC2Instance --region ${AWS::Region} --configsets UpdateEnvironment
+                 runas=root
+               mode: '000400'
+               owner: root
+               group: root
+             "/lib/systemd/system/cfn-hup.service":
+                content: !Sub |
+                  [Unit]
+                  Description=cfn-hup daemon
+                  [Service]
+                  Type=simple
+                  ExecStart=/opt/aws/bin/cfn-hup
+                  Restart=always
+                  [Install]
+                  WantedBy=multi-user.target
+          commands:
+            01enable_cfn_hup:
+              command: !Sub |
+                systemctl enable cfn-hup.service
+            02start_cfn_hup:
+              command: !Sub |
+                systemctl start cfn-hup.service
+
+        02_config-amazon-cloudwatch-agent:
+          files:
+            '/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json':
+              content: |
+                {
+                    "agent": {
+                        "metrics_collection_interval": 60,
+                        "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
+                        "debug": false
+                    },
+                    "logs": {
+                        "logs_collected": {
+                            "files": {
+                                "collect_list": [
+                                    {
+                                        "file_path": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
+                                        "log_group_name": "amazon-cloudwatch-agent.log",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/syslog",
+                                        "log_group_name": "/aws/linux/var/log/syslog",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/auth.log",
+                                        "log_group_name": "/aws/linux/var/log/auth",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/dpkg.log",
+                                        "log_group_name": "/aws/linux/var/log/dpkg",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/amazon/ssm/amazon-ssm-agent.log",
+                                        "log_group_name": "/amazon/ssm/amazon-ssm-agent",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/amazon/ssm/errors.log",
+                                        "log_group_name": "/amazon/ssm/errors",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/production.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/production",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/reconfigure/**.log",
+                                        "log_group_name": "/gitlab/reconfigure",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/nginx/gitlab_error.log",
+                                        "log_group_name": "/gitlab/nginx/gitlab_error",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/nginx/access.log",
+                                        "log_group_name": "/gitlab/nginx/access",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/nginx/error.log",
+                                        "log_group_name": "/gitlab/nginx/error",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/unicorn/unicorn_stderr.log",
+                                        "log_group_name": "/gitlab/unicorn/unicorn_stderr",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/unicorn/unicorn_stdout.log",
+                                        "log_group_name": "/gitlab/unicorn/unicorn_stdout",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/application.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/application",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/sidekiq.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/sidekiq",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/sidekiq_client.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/sidekiq_client",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/api_json.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/api_json",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/grpc.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/grpc",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/gitlab/gitlab-rails/gitlab-rails-db-migrate**.log",
+                                        "log_group_name": "/gitlab/gitlab-rails/gitlab-rails-db-migrate",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    }
+                                ]
+                            }
+                        },
+                        "force_flush_interval" : 15
+                    },
+                    "metrics": {
+                        "metrics_collected": {
+                            "collectd": {},
+                            "cpu": {
+                                "resources": [
+                                    "*"
+                                ],
+                                "measurement": [
+                                    {
+                                        "name": "cpu_usage_idle",
+                                        "rename": "CPU_USAGE_IDLE",
+                                        "unit": "Percent"
+                                    },
+                                    {
+                                        "name": "cpu_usage_nice",
+                                        "unit": "Percent"
+                                    },
+                                    "cpu_usage_guest"
+                                ],
+                                "totalcpu": false,
+                                "metrics_collection_interval": 10,
+                                "append_dimensions": {
+                                    "test": "test1",
+                                    "date": "2017-10-01"
+                                }
+                            },
+                            "netstat": {
+                                "measurement": [
+                                    "tcp_established",
+                                    "tcp_syn_sent",
+                                    "tcp_close"
+                                ],
+                                "metrics_collection_interval": 60
+                            },
+                            "disk": {
+                                "measurement": [
+                                    "used_percent"
+                                ],
+                                "resources": [
+                                    "*"
+                                ],
+                                "drop_device": true
+                            },
+                            "processes": {
+                                "measurement": [
+                                    "running",
+                                    "sleeping",
+                                    "dead"
+                                ]
+                            }
+                        },
+                        "append_dimensions": {
+                            "ImageId": "${aws:ImageId}",
+                            "InstanceId": "${aws:InstanceId}",
+                            "InstanceType": "${aws:InstanceType}",
+                            "AutoScalingGroupName": "${aws:AutoScalingGroupName}"
+                        },
+                        "aggregation_dimensions": [
+                            [
+                                "AutoScalingGroupName"
+                            ],
+                            [
+                                "InstanceId",
+                                "InstanceType"
+                            ],
+                            []
+                        ]
+                    }
+                }
+
+        03_restart_amazon-cloudwatch-agent:
+          commands:
+            01_stop_service:
+              command: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a stop
+            02_start_service:
+              command: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+        04_config_gitlab:
+          files:
+
+            "/gitlab-reset-password.sh":
+              content: !Sub |
+                #/bin/bash
+                set -x
+                gitlab-rails runner -e production "  \
+                  user = User.find_by(email: 'admin@example.com');                  \
+                  user.password = user.password_confirmation = '${GitlabPassword}'; \
+                  user.save!"
+
+            "/gitlab-reset-runners.sh":
+              content: !Sub
+                - |
+                  #!/bin/bash -x
+                  encode () {
+                    echo -ne "$1" | xxd -plain | tr -d '\n' | sed 's/\(..\)/%\1/g'
+                  }
+                  export RDS_ENCODED_PASSWORD DATABASE_URL
+                  RDS_ENCODED_PASSWORD="$(encode '${RDSPassword}')"
+                  DATABASE_URL="postgres://${RDSUsername}:$RDS_ENCODED_PASSWORD@${RDSHost}:${RDSPort}/${RDSDatabaseName}"
+                  psql "$DATABASE_URL" -c "UPDATE projects SET runners_token = null, runners_token_encrypted = null;"
+                  psql "$DATABASE_URL" -c "UPDATE namespaces SET runners_token = null, runners_token_encrypted = null;"
+                  psql "$DATABASE_URL" -c "UPDATE application_settings SET runners_registration_token_encrypted = null;"
+                  psql "$DATABASE_URL" -c "UPDATE ci_runners SET token = null, token_encrypted = null;"
+                -
+                  RDSHost: !GetAtt RDSInstance.Endpoint.Address
+
+
+
+            "/gitlab-configure-env.sh":
+              content: !Sub
+                - |
+                  #!/bin/bash -x
+                  # Configure SSH
+                  tee -a /etc/ssh/sshd_config &>/dev/null <<EOF
+                  Match User git
+                    AuthorizedKeysCommand /opt/gitlab/embedded/service/gitlab-shell/bin/gitlab-shell-authorized-keys-check git %u %k
+                    AuthorizedKeysCommandUser git
+                  Match all
+                  EOF
+
+                  systemctl reload sshd
+
+                  # Root EFS for gitlab data.
+                  echo "${EFSFileSystem}.efs.${AWS::Region}.${AWS::URLSuffix}:/ /EFS nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+                  mkdir -p /EFS
+                  mount -a
+
+                  # Gitlab Config and Secrets.
+                  mkdir -p /EFS/etc/gitlab
+                  echo "${EFSFileSystem}.efs.${AWS::Region}.${AWS::URLSuffix}:/etc/gitlab /etc/gitlab nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0" >> /etc/fstab
+                  mkdir -p /etc/gitlab
+                  mount -a
+
+                -
+                  RDSHost: !GetAtt RDSInstance.Endpoint.Address
+            "/install_gitlab.sh":
+              content: !Sub
+                - |
+                  #!/bin/bash -x
+                  encode () {
+                    echo -ne "$1" | xxd -plain | tr -d '\n' | sed 's/\(..\)/%\1/g'
+                  }
+                  export DEBIAN_FRONTEND GITLAB_ROOT_PASSWORD RDS_ENCODED_PASSWORD DATABASE_URL EXTERNAL_URL
+                  DEBIAN_FRONTEND=noninteractive && dpkg --configure -a
+                  curl https://packages.gitlab.com/install/repositories/gitlab/${GitlabEdition}/script.deb.sh | bash
+                  GITLAB_ROOT_PASSWORD="${GitlabPassword}"
+                  RDS_ENCODED_PASSWORD="$(encode '${RDSPassword}')"
+                  DATABASE_URL="postgres://${RDSUsername}:$RDS_ENCODED_PASSWORD@${RDSHost}:${RDSPort}/${RDSDatabaseName}"
+                  EXTERNAL_URL="https://${ExternalUrl}"
+                  apt-get -y install ${GitlabEdition}
+                  echo "0 */12 * * * root /opt/gitlab/bin/gitlab-backup create CRON=1" >> /etc/crontab
+                  echo '0 */13 * * * root "find /var/opt/gitlab/backups/*gitlab_backup.tar -mtime +2 -type f -delete' create CRON=1 >> /etc/crontab
+                  
+                -
+                  RDSHost: !GetAtt RDSInstance.Endpoint.Address
+                  ExternalUrl: !If [ UseFQDN, !Ref FQDN, !GetAtt ApplicationLoadBalancer.DNSName]
+                  GitlabEdition: !Ref GitlabEdition
+
+            "/gitlab-init.rb":
+              content: 
+                !Sub
+                  - |
+                    postgresql['enable'] = false
+                    # gitlab_shell['auth_file'] = "/EFS/authorized_keys"
+                    
+                    external_url "https://${ExternalUrl}"
+                    nginx['listen_port'] = 80
+                    nginx['listen_https'] = false
+                    nginx['proxy_set_headers'] = {
+                      'X-Forwarded-Proto' => 'https',
+                      'X-Forwarded-Ssl' => 'on'
+                    }
+                    nginx['redirect_http_to_https'] = false
+                    gitlab_rails['gitlab_ssh_host'] = 'code.${LDAPHost}'
+                    
+                    registry_external_url 'https://${ExternalUrl}:5001'
+                    gitlab_rails['registry_enabled'] = true
+                    registry['health_storagedriver_enabled'] = false
+                    registry['enable'] = true
+                    registry['dir'] = "/EFS/registry"
+                    registry_nginx['enable'] = true
+                    registry_nginx['listen_port'] = 5001
+                    registry['debug_addr'] = "localhost:5002"
+                    registry_nginx['listen_https'] = false
+                    registry_nginx['proxy_set_headers'] = {
+                      "Host" => "$http_host",
+                      "X-Real-IP" => "$remote_addr",
+                      "X-Forwarded-For" => "$proxy_add_x_forwarded_for",
+                      "X-Forwarded-Proto" => "https",
+                      "X-Forwarded-Ssl" => "on"
+                    }
+                    registry_nginx['redirect_http_to_https'] = false
+
+                    registry['storage'] = {
+                      's3' => {
+                        'bucket' => '${ContainerRegistryBucket}',
+                        'region' => '${AWS::Region}'
+                      }
+                    }
+
+                    
+                    redis['enable'] = false
+                    gitlab_rails['lfs_enabled'] = true
+                    gitlab_rails['lfs_storage_path'] = "/EFS/lfs-objects"
+                    gitlab_rails['backup_upload_remote_directory'] = '${Bucket}'
+                    gitlab_rails['backup_multipart_chunk_size'] = 104857600
+                    gitlab_rails['backup_upload_connection'] = {
+                    'provider' => 'AWS',
+                    'use_iam_profile' => true
+                    }
+                    gitlab_rails['manage_backup_path'] = true
+                    gitlab_rails['backup_path'] = "/var/opt/gitlab/backups"
+                    gitlab_rails['backup_pg_schema'] = 'public'
+                    gitlab_rails['backup_keep_time'] = 604800
+                    gitlab_rails['backup_encryption'] = 'AES256'
+                    high_availability['mountpoint'] = '/EFS'
+                    git_data_dirs({ "default" => { "path" => "/EFS/git-data" } })
+                    gitlab_rails['shared_path'] = '/EFS/shared'
+                    gitlab_rails['uploads_directory'] = "/EFS/uploads"
+                    gitlab_ci['builds_directory'] = '/EFS/gitlab-ci/builds'
+                    gitlab_rails['initial_root_password'] = "${GitlabPassword}"
+                    gitlab_rails['db_adapter'] = "postgresql"
+                    gitlab_rails['db_encoding'] = "unicode"
+                    unicorn['worker_processes'] = 3
+                    unicorn['worker_timeout'] = 120
+                    gitlab_rails['db_database'] = "${RDSDatabaseName}"
+                    gitlab_rails['db_username'] = "${RDSUsername}"
+                    gitlab_rails['db_password'] = "${RDSPassword}"
+                    gitlab_rails['db_host'] = "${RDSHost}"
+                    gitlab_rails['db_port'] = "${RDSPort}"
+                    gitlab_rails['redis_host'] = "${RedisEndpoint}"
+                    gitlab_rails['redis_port'] = "${RedisPort}"
+                    gitlab_rails['initial_shared_runners_registration_token'] = "${GitlabRunnerToken}"
+
+                  #   gitlab_rails['smtp_enable'] = true
+                  #   gitlab_rails['smtp_address'] = "smtp.mail.us-east-1.awsapps.com"
+                  #   gitlab_rails['smtp_port'] = 465
+                  #   gitlab_rails['smtp_user_name'] = "gitlab.svc@${LDAPHost}"
+                  #   gitlab_rails['smtp_password'] = "${GitlabPassword}"
+                  #   gitlab_rails['smtp_domain'] = "${LDAPHost}"
+                  #   gitlab_rails['smtp_authentication'] = "login"
+                  #   gitlab_rails['smtp_enable_starttls_auto'] = true
+                  #   gitlab_rails['smtp_tls'] = true
+
+                  # gitlab_rails['incoming_email_enabled'] = true
+                  # gitlab_rails['incoming_email_address'] = "gitlab.svc+%{key}@${LDAPHost}"
+                  # gitlab_rails['incoming_email_email'] = "gitlab.svc@${LDAPHost}"
+                  # gitlab_rails['incoming_email_password'] = "${GitlabPassword}"
+                  # gitlab_rails['incoming_email_host'] = "imap.mail.us-east-1.awsapps.com"
+                  # gitlab_rails['incoming_email_port'] = 993
+                  # gitlab_rails['incoming_email_ssl'] = true
+                  # gitlab_rails['incoming_email_start_tls'] = false
+
+                    gitlab_rails['ldap_enabled'] = true
+                    gitlab_rails['ldap_group_sync_worker_cron'] = "*/10 * * * *"
+                    gitlab_rails['ldap_servers'] = YAML.load <<-EOS # remember to close this block with 'EOS' below
+                      main:
+                        label: 'LDAP'
+                        host: '${LDAPHost}'
+                        port: 389 # usually 636 for SSL
+                        uid: 'sAMAccountName' # This should be the attribute, not the value that maps to uid.
+                        bind_dn: '${LDAPBindDN}'
+                        password: '${LDAPBindPassword}'
+                        encryption: 'plain' # "start_tls" or "simple_tls" or "plain"
+                        timeout: 10
+                        active_directory: true
+                        allow_username_or_email_login: true
+                        block_auto_created_users: false
+                        base: '${LDAPUserBaseDN}'
+                        user_filter: '${LDAPUserFilter}'
+                        attributes:
+                          username: 'sAMAccountName'
+                          name: 'cn'
+                          first_name: 'givenName'
+                          last_name: 'sn'
+                        lowercase_usernames: false
+                        group_base: '${LDAPGroupBaseDN}'
+                        admin_group: '${LDAPAdminGroupCN}'
+                        external_groups: []
+                      EOS
+
+
+                  - 
+                    RedisEndpoint: !GetAtt RedisCluster.PrimaryEndPoint.Address
+                    RDSHost: !GetAtt RDSInstance.Endpoint.Address
+                    ElasticsearchEndpoint: !If [ UseElasticsearch, !GetAtt ElasticsearchDomain.DomainEndpoint, '']
+                    ElasticsearchEnabled: !If [ UseElasticsearch, 'true', 'false']
+                    Bucket: !Ref ApplicationBackupBucket
+                    ContainerRegistryBucket: !Ref ApplicationContainerRegistryBucket
+                    Protocol: !If [ UseSSLCertificate, 'https://', 'http://']
+                    ExternalUrl: !If [ UseFQDN, !Ref FQDN, !GetAtt ApplicationLoadBalancer.DNSName]
+
+          commands:
+            1-configure-efs:
+              command: bash /gitlab-configure-env.sh
+            2-create-config:
+              command: cat /gitlab-init.rb > /etc/gitlab/gitlab.rb
+            3-install-gitlab:
+            # Configure SSH
+
+              command: bash /install_gitlab.sh
+            4-gitlab-reconfigure:
+              command: gitlab-ctl reconfigure
+    Properties:
+      KeyName: !Ref ApplicationKeyName
+      ImageId: !Ref UbuntuImageId
+      SecurityGroups:
+      - !Ref ApplicationInstanceSecurityGroup
+      - !Ref ApplicationRegistryInstanceSecurityGroup
+      InstanceType: !Ref ApplicationInstanceType
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sda1"
+        Ebs:
+          VolumeSize:
+            Ref: ApplicationInstanceStorageSize
+          VolumeType:
+            Ref: ApplicationInstanceStorageType
+          Iops:
+            Fn::If:
+            - ApplicationStorageWithIOPSCondition
+            - !Ref ApplicationInstanceStorageIOPS
+            - !Ref AWS::NoValue
+      IamInstanceProfile: !Ref ApplicationInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #cloud-config
+          ssh_keys:
+              ecdsa_private: |
+                  -----BEGIN EC PRIVATE KEY-----
+                  MHcCAQEEIO8ZQM8I9W6N+XTi7WghBuevbwy6CpGFRgdQh2f0tdLHoAoGCCqGSM49
+                  AwEHoUQDQgAEU+pDz7zFmQ9evittz21JrYjth3ihBZ+lW9Y/sxKIElPSu0E6C4KC
+                  gHEDYVyzF+VfMN/nrng1H/CPLOhF+za8kg==
+                  -----END EC PRIVATE KEY-----
+              ecdsa_public: ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFPqQ8+8xZkPXr4rbc9tSa2I7Yd4oQWfpVvWP7MSiBJT0rtBOguCgoBxA2FcsxflXzDf5654NR/wjyzoRfs2vJI= root@ip-10-0-1-207
+          ssh_genkeytypes: ecdsa
+          disable_root: true
+          disable_root_opts: no-port-forwarding,no-agent-forwarding,no-X11-forwarding
+          repo_update: true
+          repo_upgrade: all
+
+          packages:
+          - python-setuptools
+          - python3-pip
+          - python-pip
+          - collectd
+          - postgresql-client
+          - jq
+          - curl
+          - nfs-common
+          - htop
+
+          runcmd:
+          - wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
+          - dpkg -i /tmp/amazon-cloudwatch-agent.deb
+          - mkdir -p /opt/aws/bin
+          - python /usr/lib/python2.7/dist-packages/easy_install.py --script-dir /opt/aws/bin https://s3.${AWS::URLSuffix}/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+          - /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource ApplicationLaunchConfiguration --region ${AWS::Region}
+          - /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ApplicationAutoScalingGroup --region ${AWS::Region}
+
+          
+  ApplicationInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable SSH from NetworkLoadbalancer, and HTTP from ApplicationLoadbalancer.
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        SourceSecurityGroupId: !Ref ApplicationLoadBalancerSecurityGroup
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Subnets:
+      - !Ref PrivateSubnet1ID
+      - !Ref PrivateSubnet2ID
+      Type: application
+      SecurityGroups:
+      - !Ref ApplicationLoadBalancerSecurityGroup
+  ApplicationLoadBalancerListener80:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - !If
+          - UseSSLCertificate
+          - Type: "redirect"
+            RedirectConfig:
+              Protocol: "HTTPS"
+              Port: "443"
+              Host: "#{host}"
+              Path: "/#{path}"
+              Query: "#{query}"
+              StatusCode: "HTTP_301"
+          - Type: forward
+            TargetGroupArn: !Ref ApplicationLoadBalancerTargetGroup
+
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: '80'
+      Protocol: 'HTTP'
+
+  ApplicationLoadBalancerListener443:
+    Condition: UseSSLCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApplicationLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: '443'
+      Protocol: 'HTTPS'
+      Certificates:
+      - CertificateArn: !Ref SSLCertificate
+
+  ApplicationLoadBalancerListener5001:
+    Condition: UseSSLCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApplicationRegistryLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: '5001'
+      Protocol: 'HTTPS'
+      Certificates:
+      - CertificateArn: !Ref SSLCertificate
+
+  ApplicationRegistryInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable SSH from NetworkLoadbalancer, and HTTP from ApplicationLoadbalancer.
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '5001'
+        ToPort: '5001'
+        SourceSecurityGroupId: !Ref ApplicationLoadBalancerSecurityGroup
+  
+  ApplicationRegistryLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP from internal environment.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 10.0.0.0/8
+          FromPort: 443
+          ToPort: 443
+          IpProtocol: tcp
+      Tags:
+        - Key: Name
+          Value: ApplicationRegistryLoadBalancer Security Group
+
+
+  ApplicationRegistryLoadBalancerTargetGroup:
+      Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+      Description: |
+        Target group for the LoadBalancer. Note that the autoscaling group sets its
+        TargetGroupARN field to this target group, ensuring all instances are registered
+        with the target group
+      Properties:
+        HealthCheckIntervalSeconds: 30
+        HealthyThresholdCount: 3
+        Port: 5001
+        Protocol: HTTP
+        UnhealthyThresholdCount: 3
+        HealthCheckPath: /
+        VpcId: !Ref VpcId
+
+  NetworkLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH from internal environment.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 10.0.0.0/8
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+      Tags:
+        - Key: Name
+          Value: NetworkLoadBalancer Security Group  
+
+  ApplicationLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP from internal environment.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: 10.0.0.0/8
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+        - CidrIp: 10.0.0.0/8
+          FromPort: 443
+          ToPort: 443
+          IpProtocol: tcp
+        - CidrIp: 10.0.0.0/8
+          FromPort: 5001
+          ToPort: 5001
+          IpProtocol: tcp
+      Tags:
+        - Key: Name
+          Value: ApplicationLoadBalancer Security Group
+  ApplicationLoadBalancerTargetGroup:
+      Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+      Description: |
+        Target group for the LoadBalancer. Note that the autoscaling group sets its
+        TargetGroupARN field to this target group, ensuring all instances are registered
+        with the target group
+      Properties:
+        HealthCheckIntervalSeconds: 30
+        HealthyThresholdCount: 3
+        Port: 80
+        Protocol: HTTP
+        UnhealthyThresholdCount: 3
+        HealthCheckPath: /users/sign_in
+        VpcId: !Ref VpcId
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Subnets:
+      - !Ref PrivateSubnet1ID
+      - !Ref PrivateSubnet2ID
+      Type: network
+  NetworkLoadBalancerListener22:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NetworkLoadBalancerTargetGroup
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '22'
+      Protocol: TCP
+  NetworkLoadBalancerTargetGroup:
+      Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+      Description: |
+        Target group for the LoadBalancer. Note that the autoscaling group sets its
+        TargetGroupARN field to this target group, ensuring all instances are registered
+        with the target group
+      Properties:
+        HealthCheckIntervalSeconds: 30
+        HealthyThresholdCount: 3
+        UnhealthyThresholdCount: 3
+        Port: 22
+        Protocol: TCP
+        VpcId: !Ref VpcId
+        TargetGroupAttributes:
+          - Key: stickiness.enabled
+            Value: true
+          - Key: stickiness.type
+            Value: source_ip
+  ApplicationBackupBucket:
+    Metadata:
+        cfn_nag:
+          rules_to_suppress:
+          - id: W35
+            reason: No Access Logs needed.
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  ApplicationBackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Sub ${ApplicationBackupBucket}
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS:
+              - !GetAtt ApplicationInstanceRole.Arn
+          Action:
+            - 's3:*'
+          Resource: !Sub arn:${AWS::Partition}:s3:::${ApplicationBackupBucket}
+
+  ApplicationContainerRegistryBucket:
+    Metadata:
+        cfn_nag:
+          rules_to_suppress:
+          - id: W35
+            reason: No Access Logs needed.
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  ApplicationContainerRegistryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Sub ${ApplicationContainerRegistryBucket}
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS:
+              - !GetAtt ApplicationInstanceRole.Arn
+          Action:
+            - 's3:*'
+          Resource: !Sub arn:${AWS::Partition}:s3:::${ApplicationContainerRegistryBucket}
+
+
+# GitlabRunner Resources
+  RunnerInstanceSecurityGroup:
+    Condition: UseGitlabRunner
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: !Ref VpcCIDR
+  RunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - !Sub ec2.${AWS::URLSuffix}
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: ELBPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: ec2:*
+            Resource: "*"
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+  RunnerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - Ref: RunnerInstanceRole
+  RunnerAutoScalingGroup:
+    Condition: UseGitlabRunner
+    DependsOn: ApplicationAutoScalingGroup
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref RunnerLaunchConfiguration
+      VPCZoneIdentifier:
+      - Ref: PrivateSubnet1ID
+      - Ref: PrivateSubnet2ID
+      MinSize: !Ref GitlabRunnerMinNodes
+      MaxSize: !Ref GitlabRunnerMaxNodes
+      Cooldown: '120'
+      DesiredCapacity: !Ref GitlabRunnerDesiredInstanceCount
+      Tags:
+      - Key: Name
+        Value: GitLabRunner
+        PropagateAtLaunch: 'true'
+    CreationPolicy:
+      ResourceSignal:
+        Count:
+          Ref: GitlabRunnerDesiredInstanceCount
+        Timeout: PT60M
+  RunnerLaunchConfiguration:
+    Condition: UseGitlabRunner
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      Comment: Install GitLab Runner
+      AWS::CloudFormation::Init:
+        configSets:
+          default:
+            - 01_setupCfnHup
+            - 02_config-amazon-cloudwatch-agent
+            - 03_restart_amazon-cloudwatch-agent
+            - 04_install_gitlab_runners
+          UpdateEnvironment:
+            - 02_config-amazon-cloudwatch-agent
+            - 03_restart_amazon-cloudwatch-agent
+        01_setupCfnHup:
+          files:
+            '/etc/cfn/cfn-hup.conf':
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                interval=1
+              mode: '000400'
+              owner: root
+              group: root
+            '/etc/cfn/hooks.d/amazon-cloudwatch-agent-auto-reloader.conf':
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init.02_config-amazon-cloudwatch-agent
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource EC2Instance --region ${AWS::Region} --configsets UpdateEnvironment
+                runas=root
+              mode: '000400'
+              owner: root
+              group: root
+            "/lib/systemd/system/cfn-hup.service":
+                content: !Sub |
+                  [Unit]
+                  Description=cfn-hup daemon
+                  [Service]
+                  Type=simple
+                  ExecStart=/opt/aws/bin/cfn-hup
+                  Restart=always
+                  [Install]
+                  WantedBy=multi-user.target
+          commands:
+            01enable_cfn_hup:
+              command: !Sub |
+                systemctl enable cfn-hup.service
+            02start_cfn_hup:
+              command: !Sub |
+                systemctl start cfn-hup.service
+
+        02_config-amazon-cloudwatch-agent:
+          files:
+            '/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json':
+              content: |
+                {
+                    "agent": {
+                        "metrics_collection_interval": 60,
+                        "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
+                        "debug": false
+                    },
+                    "logs": {
+                        "logs_collected": {
+                            "files": {
+                                "collect_list": [
+                                    {
+                                        "file_path": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
+                                        "log_group_name": "amazon-cloudwatch-agent.log",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/syslog",
+                                        "log_group_name": "/aws/linux/var/log/syslog",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/auth.log",
+                                        "log_group_name": "/aws/linux/var/log/auth",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/dpkg.log",
+                                        "log_group_name": "/aws/linux/var/log/dpkg",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/amazon/ssm/amazon-ssm-agent.log",
+                                        "log_group_name": "/amazon/ssm/amazon-ssm-agent",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    },
+                                    {
+                                        "file_path": "/var/log/amazon/ssm/errors.log",
+                                        "log_group_name": "/amazon/ssm/errors",
+                                        "log_stream_name": "{instance_id}",
+                                        "timestamp_format": "%Y-%m-%dT%H:%M:%S"
+                                    }
+                                ]
+                            }
+                        },
+                        "force_flush_interval" : 15
+                    },
+                    "metrics": {
+                        "metrics_collected": {
+                            "collectd": {},
+                            "cpu": {
+                                "resources": [
+                                    "*"
+                                ],
+                                "measurement": [
+                                    {
+                                        "name": "cpu_usage_idle",
+                                        "rename": "CPU_USAGE_IDLE",
+                                        "unit": "Percent"
+                                    },
+                                    {
+                                        "name": "cpu_usage_nice",
+                                        "unit": "Percent"
+                                    },
+                                    "cpu_usage_guest"
+                                ],
+                                "totalcpu": false,
+                                "metrics_collection_interval": 10,
+                                "append_dimensions": {
+                                    "test": "test1",
+                                    "date": "2017-10-01"
+                                }
+                            },
+                            "netstat": {
+                                "measurement": [
+                                    "tcp_established",
+                                    "tcp_syn_sent",
+                                    "tcp_close"
+                                ],
+                                "metrics_collection_interval": 60
+                            },
+                            "disk": {
+                                "measurement": [
+                                    "used_percent"
+                                ],
+                                "resources": [
+                                    "*"
+                                ],
+                                "drop_device": true
+                            },
+                            "processes": {
+                                "measurement": [
+                                    "running",
+                                    "sleeping",
+                                    "dead"
+                                ]
+                            }
+                        },
+                        "append_dimensions": {
+                            "ImageId": "${aws:ImageId}",
+                            "InstanceId": "${aws:InstanceId}",
+                            "InstanceType": "${aws:InstanceType}",
+                            "AutoScalingGroupName": "${aws:AutoScalingGroupName}"
+                        },
+                        "aggregation_dimensions": [
+                            [
+                                "AutoScalingGroupName"
+                            ],
+                            [
+                                "InstanceId",
+                                "InstanceType"
+                            ],
+                            []
+                        ]
+                    }
+                }
+
+        03_restart_amazon-cloudwatch-agent:
+          commands:
+            01_stop_service:
+              command: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a stop
+            02_start_service:
+              command: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+        04_install_gitlab_runners:
+                packages: {}
+                files:
+                  "/register-runner.sh":
+                    content:
+                      !Sub
+                        - |
+                          #!/bin/bash -x
+                          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+                          add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+                          curl -L https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh | bash
+                          apt-get update -y
+                          apt-get install -y docker-ce docker-ce-cli containerd.io gitlab-runner
+                          systemctl start docker
+                          systemctl enable docker
+                          gitlab-runner register \
+                          --non-interactive \
+                          --url "${Protocol}${ExternalUrl}" \
+                          --registration-token "${Token}" \
+                          --executor "docker" \
+                          --docker-image ruby:2.4 \
+                          --description "`curl http://169.254.169.254/latest/meta-data/instance-id/`-runner" \
+                          --run-untagged="true" \
+                          --locked="false"
+                        -
+                          Protocol: !If [ UseSSLCertificate, 'https://', 'http://']
+                          ExternalUrl: !If [ UseFQDN, !Ref FQDN, !GetAtt ApplicationLoadBalancer.DNSName]
+                          Token: !Ref GitlabRunnerToken
+                commands:
+                  1-Register-Runner:
+                    command: bash /register-runner.sh
+                  2-Start-Runner:
+                    command: gitlab-runner start
+    Properties:
+      KeyName: !Ref ApplicationKeyName
+      ImageId: !Ref UbuntuImageId
+      SecurityGroups:
+      - !Ref RunnerInstanceSecurityGroup
+      InstanceType: !Ref GitlabRunnerInstanceType
+      IamInstanceProfile: !Ref RunnerInstanceProfile
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sda1"
+        Ebs:
+          VolumeSize: !Ref GitlabRunnerInstanceStorageSize
+      UserData:
+        Fn::Base64: !Sub |
+          #cloud-config
+          package_update: true
+          package_upgrade: all
+
+          packages:
+          - apt-transport-https
+          - ca-certificates
+          - software-properties-common
+          - gnupg-agent
+          - python-setuptools
+          - python3-pip
+          - python-pip
+          - collectd
+          - postgresql-client
+          - jq
+          - curl
+          - nfs-common
+
+
+          runcmd:
+          - wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
+          - dpkg -i /tmp/amazon-cloudwatch-agent.deb
+          - mkdir -p /opt/aws/bin
+          - python /usr/lib/python2.7/dist-packages/easy_install.py --script-dir /opt/aws/bin https://s3.${AWS::URLSuffix}/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+          - /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource RunnerLaunchConfiguration --region ${AWS::Region}
+          - /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource RunnerAutoScalingGroup --region ${AWS::Region}
+
+Outputs:
+# Redis Outputs
+  RedisEndpoint:
+    Description: Redis Primary Endpoint Address.
+    Value: !GetAtt RedisCluster.PrimaryEndPoint.Address
+# Postgres Outputs
+  RDSHostname:
+    Description: RDS hostname
+    Value: !GetAtt RDSInstance.Endpoint.Address
+  RDSPort:
+    Description: RDS port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+# Elasticsearch Outputs
+  KibanaURL:
+    Description: Kibana URL
+    Value: !If
+    - UseElasticsearch
+    - !Sub
+      - ${ESEndpoint}/_plugin/kibana/
+      - { ESEndpoint: !GetAtt ElasticsearchDomain.DomainEndpoint }
+    - 'UseElasticsearch Disabled'
+  ElasticsearchEndpoint:
+    Description: Elasticsearch domain endpoint
+    Value: !If
+    - UseElasticsearch
+    - !GetAtt ElasticsearchDomain.DomainEndpoint
+    - 'UseElasticsearch Disabled'
+  ElasticsearchDomainARN:
+    Description: Elasticsearch domain Arn
+    Value: !If
+    - UseElasticsearch
+    - !GetAtt ElasticsearchDomain.DomainArn
+    - 'UseElasticsearch Disabled' 
+# Gitlab Outputs
+  GitlabElasticLoadBalancerEndpoint:
+    Description: GitLab HTTP Access
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  NetworkElasticLoadBalancerEndpoint:
+      Description: SSH Clone URL
+      Value: !GetAtt NetworkLoadBalancer.DNSName
+  ExternalUrl:
+      Description: Gitlab External URL
+      Value: !Sub
+      - |
+        ${Protocol}${ExternalUrl}
+      - 
+        Protocol: !If [ UseSSLCertificate, 'https://', 'http://']
+        ExternalUrl: !If [ UseFQDN, !Ref FQDN, !GetAtt ApplicationLoadBalancer.DNSName]
